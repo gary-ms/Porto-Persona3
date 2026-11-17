@@ -345,6 +345,8 @@ const detailHeaderDiv = document.getElementById("detail-header-div");
 const detailTitle = document.getElementById("detail-title");
 const detailIconImg = document.getElementById("detail-icon-img");
 const detailPreview = document.getElementById("detail-preview");
+const detailRepoBtn = document.getElementById("detail-repo-btn");
+const detailBackBtn = document.getElementById("detail-back-btn");
 
 // DOM Elements: Skill Screen
 const skillPage = document.getElementById("skill-page");
@@ -1010,84 +1012,6 @@ function techLogoFile(name) {
   return String(name).toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-// --------------------------------------------------------------------------
-// Preview frames: size the screenshot to the biggest upright rectangle that
-// fits inside the slanted frame (see "PREVIEW" in style.css).
-// SHOT_FRAMES mirrors the frame size (w, h), border (b) and --shot-shape in
-// style.css, all in the same "u" units. Keep them in sync if the frame changes.
-// --------------------------------------------------------------------------
-const SHOT_FRAMES = {
-  portrait:  { w: 158, h: 290, b: 4, shape: [[45.9, 1], [100, 0], [81.6, 89.5], [0, 100], [19.3, 8]] },
-  landscape: { w: 240, h: 131, b: 4, shape: [[25.6, 0.8], [100, 0], [94.5, 89], [0, 100], [5.6, 12.8]] }
-};
-// Gap (in u) kept between the picture and the slanted edge. 0.6 hides the
-// anti-aliased seam. A NEGATIVE value lets the picture bleed past the slant;
-// it is then clipped by the frame (crops a few corner pixels, picture grows).
-const SHOT_MARGIN = 0.6;
-const shotFitCache = {};
-
-function fitShotRect(layout, ratio) {
-  const key = layout + ":" + ratio.toFixed(3) + ":" + SHOT_MARGIN;
-  if (shotFitCache[key]) return shotFitCache[key];
-
-  const f = SHOT_FRAMES[layout] || SHOT_FRAMES.portrait;
-  const bw = f.w - 2 * f.b;
-  const bh = f.h - 2 * f.b;
-  // the dark body is the same polygon laid into the frame inset by the border
-  const poly = f.shape.map(([px, py]) => [f.b + (px / 100) * bw, f.b + (py / 100) * bh]);
-
-  // convex polygon, clockwise in screen space: a point is inside when it is at
-  // least SHOT_MARGIN away from every edge
-  const inside = (x, y) => {
-    for (let i = 0; i < poly.length; i++) {
-      const [x1, y1] = poly[i];
-      const [x2, y2] = poly[(i + 1) % poly.length];
-      const ex = x2 - x1, ey = y2 - y1;
-      if ((ex * (y - y1) - ey * (x - x1)) / Math.hypot(ex, ey) < SHOT_MARGIN) return false;
-    }
-    return true;
-  };
-  const place = (W) => {
-    const H = W / ratio;
-    for (let y = 0; y + H <= f.h; y += 0.75) {
-      for (let x = 0; x + W <= f.w; x += 0.75) {
-        if (inside(x, y) && inside(x + W, y) && inside(x + W, y + H) && inside(x, y + H)) return { x, y };
-      }
-    }
-    return null;
-  };
-
-  let lo = 1, hi = f.w, best = null;
-  for (let i = 0; i < 14; i++) {
-    const mid = (lo + hi) / 2;
-    const p = place(mid);
-    if (p) { lo = mid; best = { x: p.x, y: p.y, W: mid, H: mid / ratio }; } else { hi = mid; }
-  }
-  if (!best) best = { x: f.b, y: f.b, W: bw, H: bh }; // safe fallback: whole wrapper
-
-  // convert to percentages of the wrapper (= the frame inset by its border)
-  const out = {
-    l: ((best.x - f.b) / bw) * 100,
-    t: ((best.y - f.b) / bh) * 100,
-    w: (best.W / bw) * 100,
-    h: (best.H / bh) * 100
-  };
-  shotFitCache[key] = out;
-  return out;
-}
-
-function fitShotImages(ratio) {
-  if (!detailPreview) return;
-  const layout = detailPreview.classList.contains("is-landscape") ? "landscape" : "portrait";
-  const r = fitShotRect(layout, ratio);
-  detailPreview.querySelectorAll(".detail-shot-media").forEach((media) => {
-    media.style.setProperty("--img-l", r.l.toFixed(3) + "%");
-    media.style.setProperty("--img-t", r.t.toFixed(3) + "%");
-    media.style.setProperty("--img-w", r.w.toFixed(3) + "%");
-    media.style.setProperty("--img-h", r.h.toFixed(3) + "%");
-  });
-}
-
 function renderProjectDetail() {
   if (!slinkDetail) return;
   const item = slinkData[selectedSlinkIndex];
@@ -1100,6 +1024,9 @@ function renderProjectDetail() {
     // Long titles (e.g. "PBL 307 - Get Daily Information") use a smaller, wrapping banner font.
     detailTitle.classList.toggle("is-long", item.title.length > 14);
   }
+  const links = (d.links || []).filter((l) => l.url && l.url !== "#");
+  if (detailRepoBtn) detailRepoBtn.style.display = links.length ? "" : "none";
+
   if (detailIconImg) {
     detailIconImg.style.display = "";
     detailIconImg.src = `assets/projects/${d.slug || "project"}/icon.png`;
@@ -1143,7 +1070,7 @@ function renderProjectDetail() {
 
   if (detailPreview) {
     detailPreview.className = "detail-preview " + (d.layout === "landscape" ? "is-landscape" : "is-portrait");
-    // Each screenshot sits upright in its own clipped wrapper inside the slanted frame.
+    // The screenshot sits upright inside each slanted frame (object-fit: contain), never cropped.
     const shots = [1, 2, 3].map((n) => `
       <div class="detail-shot" tabindex="0">
         <span class="detail-shot-ring" aria-hidden="true"></span>
@@ -1155,10 +1082,7 @@ function renderProjectDetail() {
       <div class="detail-shot-list">${shots}</div>
     `;
 
-    // Until the real file is known, use a typical ratio (phone 9:20, web 16:9) so the frames never look empty.
-    fitShotImages(d.layout === "landscape" ? 16 / 9 : 9 / 20);
-
-    // Then pick the frame layout and the picture size from the real asset.
+    // Pick the frame layout from the real asset: wide screenshots get the wide frames.
     const firstShot = detailPreview.querySelector(".detail-shot-media img");
     if (firstShot) {
       const fitLayout = () => {
@@ -1166,7 +1090,6 @@ function renderProjectDetail() {
         const wide = firstShot.naturalWidth > firstShot.naturalHeight;
         detailPreview.classList.toggle("is-landscape", wide);
         detailPreview.classList.toggle("is-portrait", !wide);
-        fitShotImages(firstShot.naturalWidth / firstShot.naturalHeight);
       };
       if (firstShot.complete) fitLayout();
       else firstShot.addEventListener("load", fitLayout, { once: true });
@@ -1222,7 +1145,7 @@ function closeProjectDetail(silent) {
 
   executeWavyClose({
     pageEl: detailPage,
-    exitOrigin: getExitOrigin(null, window.innerWidth - 120, window.innerHeight - 55),
+    exitOrigin: getExitOrigin(detailBackBtn, window.innerWidth - 120, window.innerHeight - 55),
     videoEl: detailBgVideo
   });
   return true;
@@ -1770,11 +1693,8 @@ if (portfolioModal) {
 
 if (slinkConfirmBtn) slinkConfirmBtn.addEventListener("click", confirmSlinkSelection);
 if (slinkBackBtn) slinkBackBtn.addEventListener("click", handleProjectBack);
-// Detail page HUD: ENTER = open repository, ESC = back (keyboard is handled in the router below)
-const detailRepoBtn = document.getElementById("detail-repo-btn");
-const detailBackBtn = document.getElementById("detail-back-btn");
-if (detailRepoBtn) detailRepoBtn.addEventListener("click", openSlinkLink);
 if (detailBackBtn) detailBackBtn.addEventListener("click", handleProjectBack);
+if (detailRepoBtn) detailRepoBtn.addEventListener("click", openSlinkLink);
 if (slinkDetail) {
   slinkDetail.addEventListener("click", (e) => {
     const btn = e.target.closest(".slink-action-btn[data-url]");
