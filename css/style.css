@@ -2538,25 +2538,26 @@ body.about-screen-active .character-viewport {
 
 /* ==========================================================================
    PREVIEW (right side)
-   Frame = slanted quadrilateral with a cut top-left corner (clip-path).
-   Inside it, .detail-shot-media is an upright, independent wrapper clipped to
-   the same shape. main.js (fitShotImage) sizes the <img> to the LARGEST
-   rectangle of the screenshot's real aspect ratio that fits inside the slanted
-   shape, so the picture stays straight, undistorted, uncropped and as big as
-   the frame allows. It sets --img-l/-t/-w/-h (percent of the wrapper).
+   Outer frame: slanted quadrilateral with a cut top-left corner (reference
+   shape, but with a gentler slant so little space is lost).
+   Inner window: an UPRIGHT rectangle that sits entirely inside that shape and
+   is sized to the screenshot's own aspect ratio, so the image fills it with
+   object-fit: contain and nothing is cropped, stretched or skewed.
    ========================================================================== */
 .detail-preview {
-  --shot-w: calc(158 * var(--u));
-  --shot-h: calc(290 * var(--u));
-  --shot-pitch: calc(133 * var(--u));
-  --shot-shape: polygon(45.9% 1%, 100% 0, 81.6% 89.5%, 0 100%, 19.3% 8%);
-  --shot-border: calc(4 * var(--u));
+  --shot-w: calc(151 * var(--u));
+  --shot-h: calc(269 * var(--u));
+  --shot-pitch: calc(142 * var(--u));
+  --shot-shape: polygon(35.6% 0.3%, 100% 0, 90.4% 96.2%, 0 100%, 10.3% 4.6%);
+  --shot-border: calc(3.5 * var(--u));
+  --img-w: 88%;
+  --img-skew: -3.3deg;
 
   position: absolute;
   z-index: 11;
-  left: calc(588 * var(--u));
-  top: calc(var(--stage-top) + 88 * var(--u));
-  width: calc(424 * var(--u));
+  left: calc(586 * var(--u));
+  top: calc(var(--stage-top) + 96 * var(--u));
+  width: calc(436 * var(--u));
   pointer-events: none;
 }
 
@@ -2639,30 +2640,29 @@ body.about-screen-active .character-viewport {
 
 .detail-shot-gloss { display: none; }
 
-/* the screenshot wrapper: same box and shape as the dark body, so anything
-   that pokes past a slanted edge is clipped exactly along the frame */
+/* the screenshot: upright, whole, centred */
 .detail-shot-media {
   position: absolute;
   z-index: 2;
   inset: var(--shot-border);
-  clip-path: var(--shot-shape);
+  display: block;
   overflow: hidden;
-  --img-l: 0%;
-  --img-t: 0%;
-  --img-w: 100%;
-  --img-h: 100%;
+  clip-path: var(--shot-shape);
 }
 
-/* the image: upright, never stretched; its box already has the screenshot's own ratio */
+/* The screenshot is skewed by the frame's own edge angle and covers the whole
+   window, so it fills the slanted frame edge to edge. The window clip trims the
+   few pixels that stick out (top-left cut, sloped bottom). */
 .detail-shot-media img {
   position: absolute;
+  left: calc((100% - var(--img-w)) / 2);
+  top: 0;
   display: block;
-  left: var(--img-l);
-  top: var(--img-t);
   width: var(--img-w);
-  height: var(--img-h);
-  object-fit: contain;
-  object-position: center;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 22%;
+  transform: skewX(var(--img-skew)) scale(1.025);
 }
 
 /* Hover / focus: the chosen frame comes forward, the others step back and blur */
@@ -2685,9 +2685,11 @@ body.about-screen-active .character-viewport {
 
 /* Web projects: three wide frames stacked, same shape language */
 .detail-preview.is-landscape {
-  --shot-w: calc(240 * var(--u));
-  --shot-h: calc(131 * var(--u));
-  --shot-shape: polygon(25.6% 0.8%, 100% 0, 94.5% 89%, 0 100%, 5.6% 12.8%);
+  --shot-w: calc(208 * var(--u));
+  --shot-h: calc(134 * var(--u));
+  --shot-shape: polygon(17% 0.5%, 100% 0, 96% 94%, 0 100%, 4% 9%);
+  --img-w: 100%;
+  --img-skew: -3.4deg;
   top: calc(var(--stage-top) + 22 * var(--u));
   left: calc(740 * var(--u));
   width: calc(272 * var(--u));
